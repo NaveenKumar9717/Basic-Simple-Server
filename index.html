@@ -11,5 +11,66 @@
         <input type="file" name="file" />
         <button type="submit">Upload</button>
     </form>
+
+    <hr>
+
+    <h1>Record and Upload Audio</h1>
+    <button id="recordButton">Start Recording</button>
+    <button id="stopButton" disabled>Stop Recording</button>
+    <p id="status">Status: Not recording</p>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        const recordButton = document.getElementById('recordButton');
+        const stopButton = document.getElementById('stopButton');
+        const statusText = document.getElementById('status');
+
+        recordButton.addEventListener('click', async () => {
+            // Request audio permission from the user
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.start();
+            statusText.textContent = "Status: Recording...";
+            recordButton.disabled = true;
+            stopButton.disabled = false;
+
+            // Store audio data chunks as they become available
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+        });
+
+        stopButton.addEventListener('click', () => {
+            mediaRecorder.stop();
+            statusText.textContent = "Status: Stopped recording";
+            stopButton.disabled = true;
+            recordButton.disabled = false;
+
+            // Send audio data to the server after recording stops
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+
+                // Send the recorded audio to the server
+                fetch('/upload-audio', {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => response.text())
+                .then(data => {
+                    statusText.textContent = `Status: ${data}`;
+                    audioChunks = []; // Reset the audio chunks for the next recording
+                })
+                .catch(error => {
+                    console.error('Error uploading audio:', error);
+                    statusText.textContent = 'Status: Error uploading audio';
+                });
+            };
+        });
+    </script>
 </body>
 </html>

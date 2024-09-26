@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File and Audio Upload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .upload-section, .recording-section, .playback-section {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .upload-section input[type="file"] {
+            display: none;
+        }
+
+        .upload-section label {
+            display: inline-block;
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .upload-section .progress-bar {
+            height: 10px;
+            background-color: #28a745;
+            margin-top: 10px;
+            width: 0;
+            border-radius: 5px;
+        }
+
+        .recording-section button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .recording-section button.disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .recording-status {
+            margin-top: 10px;
+            color: red;
+        }
+
+        .playback-section {
+            display: none;
+        }
+
+        .playback-section img {
+            width: 50px;
+            height: 50px;
+            display: inline-block;
+            vertical-align: middle;
+            animation: spin 1s linear infinite;
+        }
+
+        .playback-section img.paused {
+            animation-play-state: paused;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- File Upload Section -->
+    <div class="upload-section">
+        <h1>Upload a File</h1>
+        <form id="fileForm" action="/upload" method="POST" enctype="multipart/form-data">
+            <label for="fileInput">Choose a File</label>
+            <input type="file" id="fileInput" name="file" />
+            <div class="progress-bar" id="progressBar"></div>
+        </form>
+    </div>
+
+    <!-- Audio Recording Section -->
+    <div class="recording-section">
+        <h1>Record Audio</h1>
+        <button id="recordButton">Start Recording</button>
+        <button id="stopButton" class="disabled" disabled>Stop Recording</button>
+        <p class="recording-status" id="recordingStatus">Not recording</p>
+    </div>
+
+    <!-- Audio Playback Section -->
+    <div class="playback-section" id="playbackSection">
+        <h1>Play Recorded Audio</h1>
+        <audio id="audioPlayer" controls>
+            <source id="audioSource" src="" type="audio/webm">
+            Your browser does not support the audio element.
+        </audio>
+        <img src="https://media.giphy.com/media/26xBzTSXda2YntFw4/giphy.gif" id="audioGif" alt="Playing audio" class="paused" />
+    </div>
+
+    <script>
+        const recordButton = document.getElementById('recordButton');
+        const stopButton = document.getElementById('stopButton');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const playbackSection = document.getElementById('playbackSection');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const audioSource = document.getElementById('audioSource');
+        const audioGif = document.getElementById('audioGif');
+
+        let mediaRecorder;
+        let audioChunks = [];
+
+        // Start Recording
+        recordButton.addEventListener('click', async () => {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            mediaRecorder.start();
+
+            recordingStatus.textContent = "Recording...";
+            recordButton.disabled = true;
+            stopButton.disabled = false;
+            stopButton.classList.remove('disabled');
+
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data);
+            };
+        });
+
+        // Stop Recording and Playback
+        stopButton.addEventListener('click', () => {
+            mediaRecorder.stop();
+            recordingStatus.textContent = "Stopped recording.";
+            recordButton.disabled = false;
+            stopButton.disabled = true;
+            stopButton.classList.add('disabled');
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+
+                const formData = new FormData();
+                formData.append('audio', audioBlob, 'recording.webm');
+
+               // Send the recorded audio to the server
+               fetch('/upload-audio', {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => response.text())
+                .then(data => {
+                    statusText.textContent = `Status: ${data}`;
+                    audioChunks = []; // Reset the audio chunks for the next recording
+                })
+                .catch(error => {
+                    console.error('Error uploading audio:', error);
+                    statusText.textContent = 'Status: Error uploading audio';
+                }); 
+
+                audioSource.src = audioUrl;
+                playbackSection.style.display = "block";
+                audioPlayer.load();
+                audioChunks = [];
+            };
+
+        });
+
+        // Play/Pause Animation
+        audioPlayer.addEventListener('play', () => {
+            audioGif.classList.remove('paused');
+        });
+
+        audioPlayer.addEventListener('pause', () => {
+            audioGif.classList.add('paused');
+        });
+    </script>
+</body>
+</html>
