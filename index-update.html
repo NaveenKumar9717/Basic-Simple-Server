@@ -17,42 +17,22 @@
             color: #333;
         }
 
-        .upload-section, .recording-section, .playback-section {
+        .upload-section, .recording-section, .message-section, .playback-section {
             margin: 20px 0;
-            padding: 15px;
+            padding: 20px;
             background-color: white;
-            border-radius: 8px;
+            border-radius: 10px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
-        .upload-section input[type="file"] {
-            display: none;
-        }
-
-        .upload-section label {
-            display: inline-block;
-            background-color: #007bff;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        .upload-section .progress-bar {
-            height: 10px;
-            background-color: #28a745;
-            margin-top: 10px;
-            width: 0;
-            border-radius: 5px;
-        }
-
-        .recording-section button {
+        .recording-section button, .upload-section button {
             background-color: #007bff;
             color: white;
             padding: 10px 20px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+            margin-right: 10px;
         }
 
         .recording-section button.disabled {
@@ -60,74 +40,81 @@
             cursor: not-allowed;
         }
 
-        .recording-status {
+        .message-section textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
             margin-top: 10px;
-            color: red;
+            resize: vertical;
         }
 
-        .playback-section {
-            display: none;
+        .message-section h2 {
+            margin-top: 0;
+            color: #333;
         }
 
-        .playback-section img {
-            width: 50px;
-            height: 50px;
-            display: inline-block;
-            vertical-align: middle;
-            animation: spin 1s linear infinite;
+        .upload-section .upload-button {
+            display: block;
+            margin-top: 20px;
+            background-color: #28a745;
+            padding: 15px;
+            text-align: center;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
         }
 
-        .playback-section img.paused {
-            animation-play-state: paused;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .upload-section .upload-button:hover {
+            background-color: #218838;
         }
     </style>
 </head>
 <body>
 
-    <!-- File Upload Section -->
-    <div class="upload-section">
-        <h1>Upload a File</h1>
-        <form id="fileForm" action="/upload" method="POST" enctype="multipart/form-data">
-            <label for="fileInput">Choose a File</label>
-            <input type="file" id="fileInput" name="file" />
-            <div class="progress-bar" id="progressBar"></div>
-        </form>
-    </div>
-
     <!-- Audio Recording Section -->
     <div class="recording-section">
-        <h1>Record Audio</h1>
+        <h1>Record Your Voice</h1>
         <button id="recordButton">Start Recording</button>
         <button id="stopButton" class="disabled" disabled>Stop Recording</button>
         <p class="recording-status" id="recordingStatus">Not recording</p>
     </div>
 
+    <!-- User Message Section -->
+    <div class="message-section">
+        <h2>Your Message</h2>
+        <textarea id="userMessage" rows="5" placeholder="Type your message here..."></textarea>
+    </div>
+
+    <!-- Upload Section -->
+    <div class="upload-section">
+        <button id="uploadButton" class="upload-button">Upload Audio & Message</button>
+    </div>
+
     <!-- Audio Playback Section -->
-    <div class="playback-section" id="playbackSection">
+    <div class="playback-section" id="playbackSection" style="display:none;">
         <h1>Play Recorded Audio</h1>
         <audio id="audioPlayer" controls>
             <source id="audioSource" src="" type="audio/webm">
             Your browser does not support the audio element.
         </audio>
-        <img src="https://media.giphy.com/media/26xBzTSXda2YntFw4/giphy.gif" id="audioGif" alt="Playing audio" class="paused" />
     </div>
 
     <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlob;
+
         const recordButton = document.getElementById('recordButton');
         const stopButton = document.getElementById('stopButton');
         const recordingStatus = document.getElementById('recordingStatus');
+        const userMessage = document.getElementById('userMessage');
+        const uploadButton = document.getElementById('uploadButton');
         const playbackSection = document.getElementById('playbackSection');
         const audioPlayer = document.getElementById('audioPlayer');
         const audioSource = document.getElementById('audioSource');
-        const audioGif = document.getElementById('audioGif');
-
-        let mediaRecorder;
-        let audioChunks = [];
 
         // Start Recording
         recordButton.addEventListener('click', async () => {
@@ -145,7 +132,7 @@
             };
         });
 
-        // Stop Recording and Playback
+        // Stop Recording
         stopButton.addEventListener('click', () => {
             mediaRecorder.stop();
             recordingStatus.textContent = "Stopped recording.";
@@ -154,42 +141,42 @@
             stopButton.classList.add('disabled');
 
             mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                 const audioUrl = URL.createObjectURL(audioBlob);
 
-                const formData = new FormData();
-                formData.append('audio', audioBlob, 'recording.webm');
-
-               // Send the recorded audio to the server
-               fetch('/upload-audio', {
-                    method: 'POST',
-                    body: formData,
-                })
-                .then(response => response.text())
-                .then(data => {
-                    statusText.textContent = `Status: ${data}`;
-                    audioChunks = []; // Reset the audio chunks for the next recording
-                })
-                .catch(error => {
-                    console.error('Error uploading audio:', error);
-                    statusText.textContent = 'Status: Error uploading audio';
-                }); 
-
+                // Show the audio player after recording
                 audioSource.src = audioUrl;
                 playbackSection.style.display = "block";
                 audioPlayer.load();
                 audioChunks = [];
             };
-
         });
 
-        // Play/Pause Animation
-        audioPlayer.addEventListener('play', () => {
-            audioGif.classList.remove('paused');
-        });
+        // Upload Button Click - Upload both audio and message
+        uploadButton.addEventListener('click', () => {
+            if (!audioBlob) {
+                alert('Please record audio before uploading.');
+                return;
+            }
 
-        audioPlayer.addEventListener('pause', () => {
-            audioGif.classList.add('paused');
+            // Prepare form data with audio and user message
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.wav');
+            formData.append('message', userMessage.value);
+
+            // Send the audio and message to the server
+            fetch('/upload-audio', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                alert('Audio and message uploaded successfully!');
+            })
+            .catch(error => {
+                console.error('Error uploading files:', error);
+                alert('Failed to upload files.');
+            });
         });
     </script>
 </body>
